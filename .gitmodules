@@ -1,0 +1,3 @@
+[submodule "franka_ws/src/il_recorder"]
+	path = franka_ws/src/il_recorder
+	url = git@github.com:ColeDewis/il_recorder.git
