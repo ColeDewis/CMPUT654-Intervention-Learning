@@ -1,8 +1,12 @@
+from time import sleep
+
 import franky
 import numpy as np
+import panda_py
 import rclpy
 import tf2_ros
 from franky_msgs.msg import (
+    CarteisanTrajectory,
     CartesianMove,
     CartesianVelocity,
     GripperGrasp,
@@ -24,8 +28,7 @@ from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from scipy.spatial.transform import Rotation
 from sensor_msgs.msg import JointState
-from time import sleep
-import panda_py
+from std_msgs.msg import Empty
 
 
 class FrankyRosBridge(Node):
@@ -122,6 +125,13 @@ class FrankyRosBridge(Node):
             CartesianVelocity,
             "fr3/cartesian_vel_cmd",
             self.cart_vel_callback,
+            10,
+            callback_group=self.arm_group,
+        )
+        self.join_motion_callback = self.create_subscription(
+            Empty,
+            "fr3/join_motion",
+            self.join_motion_callback,
             10,
             callback_group=self.arm_group,
         )
@@ -258,6 +268,14 @@ class FrankyRosBridge(Node):
         return response
 
     # --- Arm Control Callbacks ---
+    def join_motion_callback(self, msg: Empty):
+        """Joins all async motions to the main thread. Can be used to try to clear any errors and catch exceptions."""
+        try:
+            self.robot.join_motion()
+        except Exception as e:
+            self.get_logger().error(f"Exception raised on joining motion: {str(e)}")
+            self.robot.recover_from_errors()
+
     def joint_pos_callback(self, msg: JointMove):
         """Moves to target joint positions using a simple list of floats."""
         self.get_logger().info("Joint Position Command Received.")
