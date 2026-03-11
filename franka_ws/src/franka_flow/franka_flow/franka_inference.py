@@ -191,8 +191,10 @@ class FlowInferenceNode(Node):
             return
 
         if joy_msg:
-            triggers = np.array(joy_msg.axes)[[2, 5]]
-            axes = np.array(joy_msg.axes)[[0, 1, 3, 4, 6, 7]]
+            # triggers = np.array(joy_msg.axes)[[2, 5]] # xbox
+            triggers = np.array(joy_msg.axes)[[4, 5]] # ps4
+            # axes = np.array(joy_msg.axes)[[0, 1, 3, 4, 6, 7]] # xbox
+            axes = np.array(joy_msg.axes)[[0, 1, 2, 3]] # ps4
 
         if self.doing_corrections:
             self.pub_correction_info.publish(
@@ -238,7 +240,7 @@ class FlowInferenceNode(Node):
 
         # NOTE these have maxlen so they will automatically pop old entries
         self.jnt_states_deque.append(joints)
-        self.gripper_deque.append(joints)
+        self.gripper_deque.append(gripper)
         self.cart_states_deque.append(self.last_pos)
         self.pcd_deque.append(pcloud)
 
@@ -249,12 +251,12 @@ class FlowInferenceNode(Node):
 
         # Prepare Tensors
         jnt_state_input = np.array(self.jnt_states_deque)
-        gripper_input = np.array(gripper)
+        gripper_input = np.array(self.gripper_deque)[:, np.newaxis]
         cart_state_input = np.array(self.cart_states_deque)
         state_input = (
-                np.concatenate([cart_state_input, gripper_input[:,np.newaxis]])
+                np.concatenate([cart_state_input, gripper_input], axis=1)
             if self.conditioning_type == "cartesian"
-            else np.concatenate([jnt_state_input, gripper_input[:,np.newaxis]])
+            else np.concatenate([jnt_state_input, gripper_input], axis=1)
         )
         pc_input = np.array(self.pcd_deque)
 
