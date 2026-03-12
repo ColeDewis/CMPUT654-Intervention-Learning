@@ -1,7 +1,7 @@
 import time
 
 import rclpy
-from franky_msgs.msg import GripperMove, JointMove, JointVelocity
+from franky_msgs.msg import GripperGrasp, GripperMove, JointMove, JointVelocity
 from geometry_msgs.msg import Pose, Twist
 from rclpy.node import Node
 from std_msgs.msg import Empty, Float64, Float64MultiArray
@@ -16,6 +16,9 @@ class FrankyTestClient(Node):
             JointVelocity, "fr3/joint_vel_cmd", 10
         )
         self.pub_gripper = self.create_publisher(GripperMove, "fr3/gripper_move", 10)
+        self.pub_grippergrsp = self.create_publisher(
+            GripperGrasp, "fr3/gripper_grasp", 10
+        )
         self.join_motion_pub = self.create_publisher(Empty, "fr3/join_motion", 10)
         # self.pub_cart_vel = self.create_publisher(Twist, "fr3/cartesian_vel_cmd", 10)
 
@@ -42,18 +45,31 @@ class FrankyTestClient(Node):
         self.get_logger().info(f"Sending Gripper Move: {width}m")
         self.pub_gripper.publish(msg)
 
+    def send_gripper_grasp(self, width):
+        msg = GripperGrasp()
+        msg.width = width
+        msg.speed = 0.05  # m/s
+        msg.force = 0.01  # N
+        msg.epsilon_inner = 0.08
+        msg.epsilon_outer = 0.08
+        self.get_logger().info(f"Sending Gripper Grasp: {width}m")
+        self.pub_grippergrsp.publish(msg)
+
 
 def main(args=None):
     rclpy.init(args=args)
     tester = FrankyTestClient()
 
-    tester.join_motion_pub.publish(Empty())  # Start joint motion mode
-    tester.send_joint_position([0.0, -0.785, 0.0, -2.356, 0.0, 1.571, 0.785])
+    # tester.join_motion_pub.publish(Empty())  # Start joint motion mode
+    # tester.send_joint_position([0.0, -0.785, 0.0, -2.356, 0.0, 1.571, 0.785])
     # tester.send_joint_position([0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0])
     # tester.send_joint_velocity([0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     # time.sleep(3.0)
     # tester.send_joint_velocity([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-    # tester.send_gripper_move(0.04)  # Open halfway
+    # tester.send_gripper_move(0.08)  # Open halfway
+    # tester.send_gripper_move(0.0)  # Open halfway
+
+    tester.send_gripper_grasp(0.0)  # Open halfway
 
     # Keep alive briefly to ensure message delivery
     time.sleep(1.0)

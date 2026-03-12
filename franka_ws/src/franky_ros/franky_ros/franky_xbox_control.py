@@ -3,13 +3,13 @@ import time
 import numpy as np
 import rclpy
 from franky_msgs.msg import CartesianMove, GripperGrasp, GripperMove, JointMove
+from franky_msgs.srv import GoHome
 from geometry_msgs.msg import Pose, Twist
 from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from scipy.spatial.transform import Rotation
 from sensor_msgs.msg import Joy
 from std_msgs.msg import Float64, Float64MultiArray
-from franky_msgs.srv import GoHome
 
 
 class FrankyXboxControl(Node):
@@ -22,7 +22,7 @@ class FrankyXboxControl(Node):
             depth=1,
         )
 
-        self.cli_home = self.create_client(GoHome, 'go_home')
+        self.cli_home = self.create_client(GoHome, "go_home")
         while not self.cli_home.wait_for_service(timeout_sec=1.0):
             pass
 
@@ -30,7 +30,9 @@ class FrankyXboxControl(Node):
             CartesianMove, "fr3/cartesian_pose_cmd", qos_fast
         )
         self.pub_joint_pos = self.create_publisher(JointMove, "fr3/joint_pos_cmd", 10)
-        # self.pub_gripper = self.create_publisher(GripperMove, "fr3/gripper_move", qos_fast)
+        self.pub_gripper_move = self.create_publisher(
+            GripperMove, "fr3/gripper_move", qos_fast
+        )
         self.pub_gripper = self.create_publisher(
             GripperGrasp, "fr3/gripper_grasp", qos_fast
         )
@@ -106,14 +108,19 @@ class FrankyXboxControl(Node):
         if grip_width != self.grip_width:
             self.grip_width = grip_width
 
-            # g_msg = GripperMove()
-            g_msg = GripperGrasp()
-            g_msg.width = float(grip_width)
-            g_msg.speed = 0.1
-            g_msg.force = 0.01
-            g_msg.epsilon_inner = 0.3
-            g_msg.epsilon_outer = 0.3
-            self.pub_gripper.publish(g_msg)
+            if grip_width == 0.08:
+                g_msg = GripperMove()
+                g_msg.width = 0.08
+                g_msg.speed = 0.1
+                self.pub_gripper_move.publish(g_msg)
+            else:
+                g_msg = GripperGrasp()
+                g_msg.width = float(grip_width)
+                g_msg.speed = 0.1
+                g_msg.force = 5.0
+                g_msg.epsilon_inner = 0.0
+                g_msg.epsilon_outer = 0.08
+                self.pub_gripper.publish(g_msg)
 
 
 def main(args=None):

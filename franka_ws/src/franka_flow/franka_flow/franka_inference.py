@@ -7,7 +7,13 @@ import message_filters
 import numpy as np
 import rclpy
 import torch
-from franky_msgs.msg import CartesianMove, CorrectionInfo, GripperGrasp, GripperState
+from franky_msgs.msg import (
+    CartesianMove,
+    CorrectionInfo,
+    GripperGrasp,
+    GripperMove,
+    GripperState,
+)
 from geometry_msgs.msg import PoseStamped, Twist, Vector3
 from il_recorder.pointcloud_utils import flat_pc_from_ros, idp3_preprocess_point_cloud
 from rclpy.callback_groups import ReentrantCallbackGroup
@@ -47,7 +53,9 @@ class FlowInferenceNode(Node):
         # ckpt_path = "/home/user/intervention-learning/franka_ws/src/franka_flow/ckpts/checkpoints/franka_peartable_test60-epoch=0120-test_mean_score=-0.038.ckpt"
         # ckpt_path = "/home/user/intervention-learning/franka_ws/src/franka_flow/ckpts/checkpoints/franka_peartable_test60-epoch=0180-test_mean_score=-0.030.ckpt"
         # ckpt_path = "/home/user/intervention-learning/franka_ws/src/franka_flow/ckpts/checkpoints_cart/franka_peartable_test60-epoch=0180-test_mean_score=-0.031.ckpt"
-        ckpt_path = "/home/user/intervention-learning/franka_ws/src/franka_flow/latest.ckpt"
+        ckpt_path = (
+            "/home/user/intervention-learning/franka_ws/src/franka_flow/latest.ckpt"
+        )
         self.get_logger().info(f"Loading checkpoint: {ckpt_path}")
 
         self.declare_parameter(
@@ -137,6 +145,9 @@ class FlowInferenceNode(Node):
             CartesianMove, "/fr3/cartesian_pose_cmd", 10
         )
         self.pub_gripper = self.create_publisher(GripperGrasp, "/fr3/gripper_grasp", 10)
+        self.pub_gripper_move = self.create_publisher(
+            GripperMove, "/fr3/gripper_move", 10
+        )
         self.pub_correction_info = self.create_publisher(
             CorrectionInfo, "correction_info", 10
         )
@@ -192,9 +203,9 @@ class FlowInferenceNode(Node):
 
         if joy_msg:
             # triggers = np.array(joy_msg.axes)[[2, 5]] # xbox
-            triggers = np.array(joy_msg.axes)[[4, 5]] # ps4
+            triggers = np.array(joy_msg.axes)[[4, 5]]  # ps4
             # axes = np.array(joy_msg.axes)[[0, 1, 3, 4, 6, 7]] # xbox
-            axes = np.array(joy_msg.axes)[[0, 1, 2, 3]] # ps4
+            axes = np.array(joy_msg.axes)[[0, 1, 2, 3]]  # ps4
 
         if self.doing_corrections:
             self.pub_correction_info.publish(
@@ -254,7 +265,7 @@ class FlowInferenceNode(Node):
         gripper_input = np.array(self.gripper_deque)[:, np.newaxis]
         cart_state_input = np.array(self.cart_states_deque)
         state_input = (
-                np.concatenate([cart_state_input, gripper_input], axis=1)
+            np.concatenate([cart_state_input, gripper_input], axis=1)
             if self.conditioning_type == "cartesian"
             else np.concatenate([jnt_state_input, gripper_input], axis=1)
         )
@@ -308,18 +319,18 @@ class FlowInferenceNode(Node):
             # send gripper target
             self.last_gripper_cmd = gripper
 
-            # 0 if command is 1 (close), else 0.08 (open)
-            # TODO have to confirm this...
-            grip_width = (1 - gripper) * 0.08
-            gripper_msg = GripperGrasp()
-            gripper_msg.width = float(grip_width)
-            gripper_msg.speed = 0.1
-            gripper_msg.force = 0.01
-            gripper_msg.epsilon_inner = 0.3
-            gripper_msg.epsilon_outer = 0.3
-
-            if not self.is_shutting_down:
-                self.pub_gripper.publish(gripper_msg)
+            if gripper == 1.0 and not self.is_shutting_down:
+                gripper_msg = GripperGrasp()
+                gripper_msg.width = 0.0
+                gripper_msg.speed = 0.1
+                gripper_msg.force = 5.0
+                gripper_msg.epsilon_inner = 0.8
+                gripper_msg.epsilon_outer = 0.8
+            elif not self.is_shutting_down:
+                msg = GripperMove()
+                msg.width = 0.08
+                msg.speed = 0.1
+                self.pub_gripper_move.publish(msg)
 
         target_msg = CartesianMove()
         target_msg.pose.position.x = float(target_pose[0])
