@@ -54,9 +54,11 @@ class FlowInferenceNode(Node):
         # ckpt_path = "/home/user/intervention-learning/franka_ws/src/franka_flow/ckpts/checkpoints/franka_peartable_test60-epoch=0120-test_mean_score=-0.038.ckpt"
         # ckpt_path = "/home/user/intervention-learning/franka_ws/src/franka_flow/ckpts/checkpoints/franka_peartable_test60-epoch=0180-test_mean_score=-0.030.ckpt"
         # ckpt_path = "/home/user/intervention-learning/franka_ws/src/franka_flow/ckpts/checkpoints_cart/franka_peartable_test60-epoch=0180-test_mean_score=-0.031.ckpt"
-        ckpt_path = (
-            "/home/user/intervention-learning/franka_ws/src/franka_flow/latest.ckpt"
-        )
+
+        ckpt_path = "/home/user/intervention-learning/franka_ws/src/franka_flow/ckpts/siriusrgb/franka_banana_rgb-epoch=0160-test_mean_score=-0.037.ckpt"
+        # ckpt_path = "/home/user/intervention-learning/franka_ws/src/franka_flow/ckpts/imgpolicy/franka_banana_rgb_30-epoch=0160-test_mean_score=-0.044.ckpt"
+        # ckpt_path = "/home/user/intervention-learning/franka_ws/src/franka_flow/ckpts/imgpolicy/franka_banana_rgb_40-epoch=0160-test_mean_score=-0.043.ckpt"
+        # ckpt_path = "/home/user/intervention-learning/franka_ws/src/franka_flow/ckpts/imgpolicy/franka_banana_rgb_50-epoch=0160-test_mean_score=-0.039.ckpt"
         self.get_logger().info(f"Loading checkpoint: {ckpt_path}")
 
         self.declare_parameter(
@@ -99,6 +101,7 @@ class FlowInferenceNode(Node):
 
         # Gripper status
         self.last_gripper_cmd = 0
+        self.last_gripper_time = time.time()
         self.last_pos = None
         self.is_shutting_down = False
 
@@ -285,7 +288,7 @@ class FlowInferenceNode(Node):
         gripper_input = np.array(self.gripper_deque)[:, np.newaxis]
         cart_state_input = np.array(self.cart_states_deque)
         gripper_input = np.array(self.gripper_deque)[:, np.newaxis]
-        self.get_logger().info(f"{cart_state_input} {gripper_input}")
+        # self.get_logger().info(f"{cart_state_input} {gripper_input}")
         state_input = (
             np.concatenate([cart_state_input, gripper_input], axis=1)
             if self.conditioning_type == "cartesian"
@@ -327,7 +330,9 @@ class FlowInferenceNode(Node):
 
         self.action_buffer = []
         gripper_actions = raw_action_seq[HISTORY_LENGTH:, 6]
-        consensus = 1 if np.mean(gripper_actions) > 0.5 else 0
+        consensus = 1 if np.mean(gripper_actions) > 0.3 else 0
+
+        self.get_logger().info(f"{np.mean(gripper_actions)}, {consensus=}")
 
         future_actions[:, 6] = consensus
         self.action_buffer.extend(future_actions[:EXECUTION_HORIZON])
@@ -347,6 +352,11 @@ class FlowInferenceNode(Node):
         if gripper != self.last_gripper_cmd:
             # send gripper target
             self.last_gripper_cmd = gripper
+            self.last_gripper_time = time.time()
+
+            self.get_logger().info(
+                f"Gripper Command: {'Close' if gripper == 1.0 else 'Open'}"
+            )
 
             if gripper == 1.0 and not self.is_shutting_down:
                 gripper_msg = GripperGrasp()
@@ -355,6 +365,7 @@ class FlowInferenceNode(Node):
                 gripper_msg.force = 5.0
                 gripper_msg.epsilon_inner = 0.8
                 gripper_msg.epsilon_outer = 0.8
+                self.pub_gripper.publish(gripper_msg)
             elif not self.is_shutting_down:
                 msg = GripperMove()
                 msg.width = 0.08
@@ -375,12 +386,12 @@ class FlowInferenceNode(Node):
 
         target_msg.relative = False  # absolute position control
 
-        self.get_logger().info(
-            "Current Pose: " + ", ".join(f"{x:.3f}" for x in self.last_pos)
-        )
-        self.get_logger().info(
-            "Target Pose: " + ", ".join(f"{x:.3f}" for x in target_pose[:6])
-        )
+        # self.get_logger().info(
+        #     "Current Pose: " + ", ".join(f"{x:.3f}" for x in self.last_pos)
+        # )
+        # self.get_logger().info(
+        #     "Target Pose: " + ", ".join(f"{x:.3f}" for x in target_pose[:6])
+        # )
 
         if not self.is_shutting_down:
             self.pub_pose.publish(target_msg)
